@@ -1,0 +1,69 @@
+name: Oneplus Kernel Build
+on:
+  workflow_dispatch:
+    inputs:
+      CPU:
+        description: "The branch of this phone, see OnePlusOSS/kernel_manifest"
+        required: true
+        default: 'sm8650'
+      manifest_name:
+        description: "The name of the manifest.xml file."
+        required: true
+        default: 'oneplus12_v'
+
+jobs:
+  env-job:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 2048
+          temp-reserve-mb: 512
+          remove-dotnet: true
+          remove-android: true
+          remove-haskell: true
+          remove-codeql: true
+          remove-docker-images: true
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y python3 git curl
+      - name: Configure Git
+        env:
+          ACTOR_NAME: ${{ github.actor }}
+        run: |
+          git config --global user.name ${ACTOR_NAME}
+          git config --global user.email "${ACTOR_NAME}@gmail.com"
+          echo "Set Git Config user.name = ${ACTOR_NAME}"
+      - name: Install Repo
+        run: |
+          sudo curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
+          sudo chmod a+x /usr/local/bin/repo
+      - name: Sync Source
+        env:
+          MANIFEST_NAME: ${{ github.event.inputs.manifest_name }}
+        run: |
+          git clone https://github.com/OnePlusOSS/kernel_manifest.git -b oneplus/${{ github.event.inputs.CPU }}
+          mkdir kernel_source
+          cd kernel_source
+          repo init -u https://android.googlesource.com/kernel/manifest
+          mv ../kernel_manifest/$MANIFEST_NAME.xml .repo/manifests
+          repo init -m $MANIFEST_NAME.xml
+          repo sync
+      - name: Build The Kernel
+        run: |
+          cd kernel_source
+          $(tail -n -1 ../kernel_manifest/README.md)
+      - name: Upload Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image_Kernel
+          path: |
+            kernel_source/out/dist/Image
+            kernel_source/out/dist/Image.gz
+            kernel_source/out/dist/Image.lz4
+
+
+      
