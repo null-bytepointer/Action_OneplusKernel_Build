@@ -25,14 +25,15 @@ on:
         description: "KernelSU Version"
         required: true
         type: choice
-        default: "stable"
-        option:
+        default: stable
+        options:
           - stable
           - latest
           - manual-version-select
           - disabled
       susfs-enabled:
         description: "Susfs Patch"
+        required: true
         type: boolean
         default: true
 
