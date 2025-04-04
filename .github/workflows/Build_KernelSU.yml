@@ -5,7 +5,7 @@ env:
   susfs-branch: "gki-android14-6.1"
 
   username: ${{ github.actor }}
-  useremail: ${{ join([github.actor,'gmail.com'],'@') }}
+  useremail: ${{ join({github.actor,'gmail.com'},'@') }}
 
 on:
   workflow_dispatch:
