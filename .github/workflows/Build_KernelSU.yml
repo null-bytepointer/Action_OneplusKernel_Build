@@ -90,14 +90,14 @@ jobs:
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
           echo "KernelSU Version: $KSU_VERSION"
       - name: Apply Susfs Patches
-        if: ${{ github.event.inputs.susfs-enabled }}
+        if: ${{ github.event.inputs.susfs-enabled == true }}
         run: |
           cd kernel_source/kernel_platform
           export KERNEL_REPO=$(pwd)
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b ${{ env.susfs-branch }}
           cd susfs4ksu
           cp ./kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_REPO/KernelSU/
-          cp ./kernel_patches/50_add_susfs_in_kernel-*.patch $KERNEL_REPO/common/50_add_susfs_in_kernel.patch
+          cp ./kernel_patches/50_add_susfs_in_kernel-* $KERNEL_REPO/common/50_add_susfs_in_kernel.patch
           cp ./kernel_patches/fs/* $KERNEL_REPO/common/fs/
 
           cd $KERNEL_REPO/KernelSU & patch -p1 < 10_enable_susfs_for_ksu.patch
