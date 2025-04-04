@@ -1,0 +1,149 @@
+name: KernelSU Build for Oneplus
+
+env:
+  manual-ksuver: "v0.5.2"
+  susfs-branch: "gki-android14-6.1"
+
+  user:
+    name: ${{ github.actor }}
+    email: ${{ github.actor + '@gmail.com' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      CPU:
+        description: "The branch for this phone, see OnePlusOSS/kernel_manifest"
+        required: true
+        type: string
+        default: "sm8650"
+      manifest-name:
+        description: "Manifest name"
+        type: string
+        required: true
+        default: "oneplus12_v"
+      kernelsu-option:
+        description: "KernelSU Version"
+        required: true
+        type: choice
+        default: "stable"
+        option:
+          - stable
+          - latest
+          - manual-version-select
+          - disabled
+      susfs-enabled:
+        description: "Susfs Patch"
+        type: boolean
+        default: true
+
+jobs:
+  env-job:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 2048
+          temp-reserve-mb: 512
+          remove-dotnet: true
+          remove-android: true
+          remove-haskell: true
+          remove-codeql: true
+          remove-docker-images: true
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y python3 git curl
+      - name: Configure Git
+        run: |
+          git config --global user.name ${{ env.user.name }}
+          git config --global user.email ${{ env.user.email }}
+          echo Set Git Config user.name = $(git config --global user.name)
+          echo Set Git Config user.email = $(git config --global user.email)
+      - name: Install Repo
+        run: |
+          sudo curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
+          sudo chmod a+x /usr/local/bin/repo
+      - name: Sync Source
+        env:
+          MANIFEST_NAME: ${{ github.event.inputs.manifest-name }}
+        run: |
+          git clone https://github.com/OnePlusOSS/kernel_manifest.git -b oneplus/${{ github.event.inputs.CPU }}
+          mkdir kernel_source
+          cd kernel_source
+          repo init -u https://android.googlesource.com/kernel/manifest
+          mv ../kernel_manifest/$MANIFEST_NAME.xml .repo/manifests
+          repo init -m $MANIFEST_NAME.xml
+          repo sync -j$(nproc)
+      - name: Apply KernelSU Patches
+        if: ${{ github.event.inputs.kernelsu-option != 'disabled' }}
+        env:
+          KSU_VER: ${{ github.event.inputs.kernelsu-option }}
+          MANUAL_VER: ${{ env.manual-ksuver }}
+        run: |
+          cd kernel_source/kernel_platform
+          export COMMAND_ARG=$(if [ ${KSU_VER} == 'stable' ] ; then echo '-'; elif [ $KSU_VER == 'lastest' ]; then echo '-b main'; elif [ $KSU_VER == 'manual-version-select' ]; then echo '-b ' $MANUAL_VER;fi)
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash $COMMAND_ARG
+          cd KernelSU
+          KSU_VERSION=$(expr $(git rev-list --count HEAD) "+" 12505)
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+          echo "KernelSU Version: $KSU_VERSION"
+      - name: Apply Susfs Patches
+        if: ${{ github.event.inputs.susfs-enabled }}
+        run: |
+          cd kernel_source/kernel_platform
+          export KERNEL_REPO=$(pwd)
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git -b ${{ env.susfs-branch }}
+          cd susfs4ksu
+          cp ./kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_REPO/KernelSU/
+          cp ./kernel_patches/50_add_susfs_in_kernel-*.patch $KERNEL_REPO/common/50_add_susfs_in_kernel.patch
+          cp ./kernel_patches/fs/* $KERNEL_REPO/common/fs/
+
+          cd $KERNEL_REPO/KernelSU & patch -p1 < 10_enable_susfs_for_ksu.patch
+          cd $KERNEL_REPO/common & patch -p1 < 50_add_susfs_in_kernel.patch
+
+          rm -rf $KERNEL_REPO/common/android/abi_gki_protected_exports_*
+      - name: Update Build Config
+        run: |
+          echo "CONFIG_KSU=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=n" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> ./common/arch/arm64/configs/gki_defconfig
+
+      - name: Build The Kernel
+        run: |
+          cd kernel_source
+          $(tail -n -1 ../kernel_manifest/README.md)
+      - name: Make AnyKernel3
+        run: |
+          git clone https://github.com/Kernel-SU/AnyKernel3 --depth=1
+          rm -rf ./AnyKernel3/.git
+          cp kernel_source/out/dist/Image ./AnyKernel3
+      - name: Upload AnyKernel3
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnyKernel3_KernelSU(${{ env.KSUVER }})_${{ github.event.inputs.manifest-name }}
+          path: |
+            ./AnyKernel3/*
+      - name: Upload Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image_KernelSU(${{ env.KSUVER }})_${{ github.event.inputs.manifest-name }}
+          path: |
+            kernel_source/out/dist/Image
+            kernel_source/out/dist/Image.gz
+            kernel_source/out/dist/Image.lz4
