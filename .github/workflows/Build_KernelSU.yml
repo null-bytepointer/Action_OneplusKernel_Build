@@ -85,26 +85,30 @@ jobs:
           repo init -u https://android.googlesource.com/kernel/manifest
           mv ../kernel_manifest/$MANIFEST_NAME.xml .repo/manifests
           repo init -m $MANIFEST_NAME.xml
-          repo sync -j$(nproc)
+          #repo sync -j$(nproc)
 
           cd ..
-          rm -rf ./cache
           tar cf - kernel_source | lz4 - kernel_source.tar.lz4
-          mkdir cache
-          mv kernel_source.tar.lz4 ./cache
+
       - name: Save Cache
         if: always() && steps.restore-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           key: ${{ steps.restore-cache.outputs.cache-primary-key }}
           path: |
-            ./cache
+            ./kernel_source.tar.lz4
+      - name: Clean Temp
+        if: steps.restore-cache.outputs.cache-hit != 'true'
+        run: |
+          rm ./kernel_source.tar.lz4
+
       - name: Load Cache
         if: ${{ steps.restore-cache.outputs.cache-hit == 'true' }}
         run: |
           echo Find Cache ${{ github.event.inputs.CPU }}-${{ github.event.inputs.manifest-name }}
           echo If the cache is broken, please delete it in Github
-          lz4 -d ./cache/kernel_source.tar.lz4 | tar -xvf -
+          lz4 -d ./kernel_source.tar.lz4 | tar -xvf -
+          rm kernel_source.tar.lz4
 
       - name: Apply KernelSU Patches
         if: ${{ github.event.inputs.kernelsu-option != 'disabled' }}
