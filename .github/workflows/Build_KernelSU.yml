@@ -85,7 +85,7 @@ jobs:
           repo init -u https://android.googlesource.com/kernel/manifest
           mv ../kernel_manifest/$MANIFEST_NAME.xml .repo/manifests
           repo init -m $MANIFEST_NAME.xml
-          #repo sync -j$(nproc)
+          repo sync -j$(nproc)
 
           cd ..
           tar cf - kernel_source | lz4 - kernel_source.tar.lz4
