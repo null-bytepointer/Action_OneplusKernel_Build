@@ -1,5 +1,5 @@
 name: KernelSU Build for Oneplus
-
+run-name: KernelSU(${{ github.event.inputs.kernelsu-option }}) Build for ${{ github.event.inputs.manifest-name }}
 env:
   manual-ksuver: "v0.5.2"
   susfs-branch: "gki-android14-6.1"
@@ -11,12 +11,12 @@ on:
   workflow_dispatch:
     inputs:
       CPU:
-        description: "The branch for this phone, see OnePlusOSS/kernel_manifest"
+        description: "The branch, see OnePlusOSS/kernel_manifest"
         required: true
         type: string
         default: "sm8650"
       manifest-name:
-        description: "Manifest name"
+        description: "Manifest Name"
         type: string
         required: true
         default: "oneplus12_v"
@@ -31,7 +31,7 @@ on:
           - manual-version-select
           - disabled
       susfs-enabled:
-        description: "Susfs Patch"
+        description: "Enable Susfs Patch"
         required: true
         type: boolean
         default: true
@@ -54,7 +54,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y python3 git curl
+          sudo apt install -y python3 git curl lz4
       - name: Configure Git
         run: |
           git config --global user.name ${{ env.username }}
@@ -65,7 +65,16 @@ jobs:
         run: |
           sudo curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
           sudo chmod a+x /usr/local/bin/repo
-      - name: Sync Source
+
+      - name: Check Cache
+        id: cache-kernel-source
+        uses: actions/cache@v4
+        with:
+          path: ./cache
+          key: ${{ github.event.inputs.CPU }}-${{ github.event.inputs.manifest-name }}
+
+      - name: Sync Source & Save Cache
+        if: ${{ steps.cache-kernel-source.outputs.cache-hit != 'true' }}
         env:
           MANIFEST_NAME: ${{ github.event.inputs.manifest-name }}
         run: |
@@ -76,6 +85,19 @@ jobs:
           mv ../kernel_manifest/$MANIFEST_NAME.xml .repo/manifests
           repo init -m $MANIFEST_NAME.xml
           repo sync -j$(nproc)
+
+          cd ..
+          rm -rf ./cache
+          tar cf - kernel_source | lz4 - kernel_source.tar.lz4
+          mv kernel_source.tar.lz4 ./cache
+
+      - name: Load Cache
+        if: ${{ steps.cache-kernel-source.outputs.cache-hit == 'true' }}
+        run: |
+          echo Find Cache ${{ github.event.inputs.CPU }}-${{ github.event.inputs.manifest-name }}
+          echo If the cache is broken, please delete it in Github
+          lz4 -d ./cache/kernel_source.tar.lz4 | tar -xvf -
+
       - name: Apply KernelSU Patches
         if: ${{ github.event.inputs.kernelsu-option != 'disabled' }}
         env:
