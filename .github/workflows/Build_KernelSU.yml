@@ -72,7 +72,7 @@ jobs:
         with:
           key: ${{ github.event.inputs.CPU }}-${{ github.event.inputs.manifest-name }}
           path: |
-            ./cache
+            ./kernel_source.tar.lz4
 
       - name: Sync Source & Pack Cache
         if: ${{ steps.cache-kernel-source.outputs.cache-hit != 'true' }}
