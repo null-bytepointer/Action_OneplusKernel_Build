@@ -89,6 +89,7 @@ jobs:
           cd ..
           rm -rf ./cache
           tar cf - kernel_source | lz4 - kernel_source.tar.lz4
+          mkdir cache
           mv kernel_source.tar.lz4 ./cache
 
       - name: Load Cache
