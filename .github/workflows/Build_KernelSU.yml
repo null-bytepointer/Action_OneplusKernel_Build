@@ -66,14 +66,15 @@ jobs:
           sudo curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
           sudo chmod a+x /usr/local/bin/repo
 
-      - name: Check Cache
-        id: cache-kernel-source
-        uses: actions/cache@v4
+      - name: Try to Restore Cache
+        id: restore-cache
+        uses: actions/cache/restore@v4
         with:
-          path: ./cache
           key: ${{ github.event.inputs.CPU }}-${{ github.event.inputs.manifest-name }}
+          path: |
+            ./cache
 
-      - name: Sync Source & Save Cache
+      - name: Sync Source & Pack Cache
         if: ${{ steps.cache-kernel-source.outputs.cache-hit != 'true' }}
         env:
           MANIFEST_NAME: ${{ github.event.inputs.manifest-name }}
@@ -91,9 +92,15 @@ jobs:
           tar cf - kernel_source | lz4 - kernel_source.tar.lz4
           mkdir cache
           mv kernel_source.tar.lz4 ./cache
-
+      - name: Save Cache
+        if: always() && steps.restore-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.restore-cache.outputs.cache-primary-key }}
+          path: |
+            ./cache
       - name: Load Cache
-        if: ${{ steps.cache-kernel-source.outputs.cache-hit == 'true' }}
+        if: ${{ steps.restore-cache.outputs.cache-hit == 'true' }}
         run: |
           echo Find Cache ${{ github.event.inputs.CPU }}-${{ github.event.inputs.manifest-name }}
           echo If the cache is broken, please delete it in Github
