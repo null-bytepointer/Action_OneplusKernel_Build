@@ -24,7 +24,7 @@ on:
         description: "KernelSU Version"
         required: true
         type: choice
-        default: stable
+        default: latest
         options:
           - stable
           - latest
@@ -115,6 +115,8 @@ jobs:
           rm -rf $KERNEL_REPO/common/android/abi_gki_protected_exports_*
       - name: Update Build Config
         run: |
+          cd kernel_source/kernel_platform
+
           echo "CONFIG_KSU=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_SUSFS_SUS_SU=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_SUSFS=y" >> ./common/arch/arm64/configs/gki_defconfig
