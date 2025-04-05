@@ -75,7 +75,7 @@ jobs:
             ./kernel_source.tar.lz4
 
       - name: Sync Source & Pack Cache
-        if: ${{ steps.cache-kernel-source.outputs.cache-hit != 'true' }}
+        if: ${{ steps.restore-cache.outputs.cache-hit != 'true' }}
         env:
           MANIFEST_NAME: ${{ github.event.inputs.manifest-name }}
         run: |
