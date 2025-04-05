@@ -72,9 +72,9 @@ jobs:
         with:
           key: ${{ github.event.inputs.CPU }}-${{ github.event.inputs.manifest-name }}
           path: |
-            ./kernel_source.tar.lz4
+            ./kernel_source
 
-      - name: Sync Source & Pack Cache
+      - name: Sync Source
         if: ${{ steps.restore-cache.outputs.cache-hit != 'true' }}
         env:
           MANIFEST_NAME: ${{ github.event.inputs.manifest-name }}
@@ -87,28 +87,13 @@ jobs:
           repo init -m $MANIFEST_NAME.xml
           repo sync -j$(nproc)
 
-          cd ..
-          tar cf - kernel_source | lz4 - kernel_source.tar.lz4
-
       - name: Save Cache
         if: always() && steps.restore-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           key: ${{ steps.restore-cache.outputs.cache-primary-key }}
           path: |
-            ./kernel_source.tar.lz4
-      - name: Clean Temp
-        if: steps.restore-cache.outputs.cache-hit != 'true'
-        run: |
-          rm ./kernel_source.tar.lz4
-
-      - name: Load Cache
-        if: ${{ steps.restore-cache.outputs.cache-hit == 'true' }}
-        run: |
-          echo Find Cache ${{ github.event.inputs.CPU }}-${{ github.event.inputs.manifest-name }}
-          echo If the cache is broken, please delete it in Github
-          lz4 -d ./kernel_source.tar.lz4 | tar -xvf -
-          rm kernel_source.tar.lz4
+            ./kernel_source
 
       - name: Apply KernelSU Patches
         if: ${{ github.event.inputs.kernelsu-option != 'disabled' }}
@@ -130,6 +115,10 @@ jobs:
           export KERNEL_REPO=$(pwd)
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b ${{ env.susfs-branch }}
           cd susfs4ksu
+          
+          ls ./kernel_patches/
+          ls ./kernel_patches/KernelSU
+
           cp ./kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_REPO/KernelSU/
           cp $(find ./kernel_patches/ -name 50_add_susfs_in_*) $KERNEL_REPO/common/50_add_susfs_in_kernel.patch
           cp ./kernel_patches/fs/* $KERNEL_REPO/common/fs/
