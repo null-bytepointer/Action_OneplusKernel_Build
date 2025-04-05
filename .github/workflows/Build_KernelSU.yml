@@ -86,7 +86,7 @@ jobs:
           MANUAL_VER: ${{ env.manual-ksuver }}
         run: |
           cd kernel_source/kernel_platform
-          export COMMAND_ARG=$(if [ ${KSU_VER} == 'stable' ] ; then echo '-'; elif [ $KSU_VER == 'lastest' ]; then echo '-s main'; elif [ $KSU_VER == 'manual-version-select' ]; then echo '-s ' $MANUAL_VER;fi)
+          export COMMAND_ARG=$(if [ ${KSU_VER} == 'stable' ] ; then echo '-'; elif [ $KSU_VER == 'latest' ]; then echo '-s main'; elif [ $KSU_VER == 'manual-version-select' ]; then echo '-s ' $MANUAL_VER;fi)
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash $COMMAND_ARG
           cd KernelSU
           KSU_VERSION=$(expr $(git rev-list --count HEAD) "+" 12505)
