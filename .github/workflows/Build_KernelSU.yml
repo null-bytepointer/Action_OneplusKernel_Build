@@ -66,14 +66,6 @@ jobs:
           sudo curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
           sudo chmod a+x /usr/local/bin/repo
 
-      - name: Try to Restore Cache
-        id: restore-cache
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ github.event.inputs.CPU }}-${{ github.event.inputs.manifest-name }}
-          path: |
-            ./kernel_source
-
       - name: Sync Source
         if: ${{ steps.restore-cache.outputs.cache-hit != 'true' }}
         env:
@@ -86,14 +78,6 @@ jobs:
           mv ../kernel_manifest/$MANIFEST_NAME.xml .repo/manifests
           repo init -m $MANIFEST_NAME.xml
           repo sync -j$(nproc)
-
-      - name: Save Cache
-        if: always() && steps.restore-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          key: ${{ steps.restore-cache.outputs.cache-primary-key }}
-          path: |
-            ./kernel_source
 
       - name: Apply KernelSU Patches
         if: ${{ github.event.inputs.kernelsu-option != 'disabled' }}
@@ -115,16 +99,18 @@ jobs:
           export KERNEL_REPO=$(pwd)
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b ${{ env.susfs-branch }}
           cd susfs4ksu
-          
-          ls ./kernel_patches/
-          ls ./kernel_patches/KernelSU
 
           cp ./kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch $KERNEL_REPO/KernelSU/
           cp $(find ./kernel_patches/ -name 50_add_susfs_in_*) $KERNEL_REPO/common/50_add_susfs_in_kernel.patch
           cp ./kernel_patches/fs/* $KERNEL_REPO/common/fs/
 
-          cd $KERNEL_REPO/KernelSU & patch -p1 < 10_enable_susfs_for_ksu.patch
-          cd $KERNEL_REPO/common & patch -p1 < 50_add_susfs_in_kernel.patch
+          cd $KERNEL_REPO/KernelSU
+          ls -a
+          patch -p1 < ./10_enable_susfs_for_ksu.patch
+
+          cd $KERNEL_REPO/common
+          ls -a
+          patch -p1 < ./50_add_susfs_in_kernel.patch
 
           rm -rf $KERNEL_REPO/common/android/abi_gki_protected_exports_*
       - name: Update Build Config
